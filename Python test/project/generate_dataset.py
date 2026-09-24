@@ -32,7 +32,6 @@ for folder in ["Base Copy"] + list(styles):
 dataset = CIFAR10(root=images, train=False, download=True)
 
 total = len(dataset)   # for a quick test, temporarily set this to 20
-total = 20
 for i in range(total):
     image, label = dataset[i]
     class_name = dataset.classes[label]

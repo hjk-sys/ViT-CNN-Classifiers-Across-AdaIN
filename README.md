@@ -1,5 +1,3 @@
-# ViT-CNN-Classifiers-Across-AdaIN.git
-All the code and dependencies from the paper, From Photographs to Paintings: Evaluating Computer Vision Architectures Across Artistic Domains.
 # ViT-CNN-Classifiers-Across-AdaIN
 
 Compares how a CNN (fine-tuned **ResNet-50**) and a Vision Transformer (**ViT-Base-16**) hold up when the same images are shown in different artistic styles.
@@ -55,21 +53,26 @@ The ViT repository contains 11 checkpoints. Only the `original` one (trained on 
 
 ## 3. Run the experiments
 
-The scripts use paths relative to the `Python test` folder, so run them from there. Pass the name of the dataset folder to evaluate. With no argument, they use `Base Copy` (the original images):
+The scripts use paths relative to the `Python test` folder, so run them from there:
 
 ```bash
 cd "Python test"
-
-# original CIFAR-10 test images
-python project/ResnetInput.py
-python project/ViTInput.py
-
-# a stylized version
-python project/ResnetInput.py oil_painting-Batch
-python project/ViTInput.py oil_painting-Batch
+python project/ResnetInput.py   # evaluate ResNet-50
+python project/ViTInput.py      # evaluate ViT-Base-16
 ```
 
-Available dataset names: `Base Copy`, `abstract-Batch`, `cubism-Batch`, `oil_painting-Batch`, `Post_Impression-Batch`, `sketch-Batch`, `watercolor-Batch`.
+Both scripts evaluate one version of the test set per run, and it is chosen inside the script. Each script has one `ImageFolder(...)` block per dataset. The oil painting block is active by default. To evaluate a different version, comment out the active block and uncomment the one you want.
+
+To evaluate the original images, point the `root` at `project/Images/Base Copy` instead:
+
+```python
+dataset = ImageFolder(
+    root="project/Images/Base Copy",
+    transform=transform
+)
+```
+
+Available dataset folders: `Base Copy`, `abstract-Batch`, `cubism-Batch`, `oil_painting-Batch`, `Post_Impression-Batch`, `sketch-Batch`, `watercolor-Batch`.
 
 The scripts use an Apple Silicon GPU (MPS) when one is available and fall back to the CPU otherwise.
 
