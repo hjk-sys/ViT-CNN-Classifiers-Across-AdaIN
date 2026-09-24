@@ -9,7 +9,7 @@ venv/
 data/
 runs/
 
-# tutorial/practice scripts (remove this line if you want them in the repo)
+# tutorial/practice scripts 
 Practice/
 
 # weights and checkpoints
