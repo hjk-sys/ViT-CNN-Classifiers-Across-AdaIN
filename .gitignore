@@ -1,0 +1,25 @@
+# all generated and downloaded images, including the CIFAR-10 archive
+Images/
+
+# virtual environments
+.venv/
+venv/
+
+# tutorial data and TensorBoard logs
+data/
+runs/
+
+# tutorial/practice scripts (remove this line if you want them in the repo)
+Practice/
+
+# weights and checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# python clutter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
