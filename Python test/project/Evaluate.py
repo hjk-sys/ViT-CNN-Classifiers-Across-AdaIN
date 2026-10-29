@@ -4,68 +4,45 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision.datasets import ImageFolder
 
-results_dir = "project/results"
-classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+RESULTS_DIR = "project/results"
+CLASSES = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
 # Every dataset the models are evaluated on (None = the original CIFAR-10 test set)
-datasets = {
+DATASETS = {
     "baseline": None,
-    "alpha0": "project/Images/alpha0-Batch",              # control: AdaIN with alpha = 0 (no style)
-    "resize_only": "project/Images/resize_only-Batch",    # control: 32 -> 256 -> 32 resize only
+    "alpha0": "project/Images/alpha0-Batch",              # control: same AdaIN pipeline, alpha = 0 (no style)
+    "resize_only": "project/Images/resize_only-Batch",    # control: 32 -> 256 -> 32 resize only, no AdaIN
     "oil_painting": "project/Images/oil_painting-Batch",
     "abstract": "project/Images/abstract-Batch",
     "post_impression": "project/Images/Post_Impression-Batch",
     "watercolor": "project/Images/watercolor-Batch",
     "sketch": "project/Images/sketch-Batch",
     "cubism": "project/Images/cubism-Batch",
-    # Extra reference paintings
+    # Extra reference paintings, to check results aren't a quirk of one painting
     "cubism_b": "project/Images/cubism_b-Batch",
     "cubism_c": "project/Images/cubism_c-Batch",
     "sketch_b": "project/Images/sketch_b-Batch",
     "sketch_c": "project/Images/sketch_c-Batch",
 }
 
-# Attractor = predicted at least 1.5x as often as expected, and 0.25 more than under the alpha = 0 control
-attractor = 1.5
-control_margin = 0.25
 
-
-def load(model_name, condition):
-    return np.load(f"{results_dir}/{model_name}__{condition}.npz")["confusion"]
-
-
-# Predicted count / expected count for each class
-def rho(model_name, condition):
-    confusion = load(model_name, condition)
-    return confusion.sum(axis=0) / (confusion.sum() / 10)
-
-
-def attractors(model_name, condition):
-    rho_values = rho(model_name, condition)
-    return (rho_values >= attractor) & (rho_values - rho(model_name, "alpha0") >= control_margin)
-
-
-# Evaluates every dataset that's finished and not saved yet (delete its file in project/results/ to redo one)
 def evaluate_all(model, device, model_name, transform):
-    for name, folder in datasets.items():
-        save_as = f"{results_dir}/{model_name}__{name}"
+    """Runs evaluation() on every dataset that is fully generated and not saved yet.
+    To redo one, delete its file in project/results/."""
+    for name, folder in DATASETS.items():
+        save_as = f"{RESULTS_DIR}/{model_name}__{name}"
         if os.path.exists(save_as + ".npz"):
             print(f"skip {name}: already saved")
             continue
         if folder is None:
-            dataset = datasets.CIFAR10(
-                root="project/Images",
-                train=False,
-                download=False,
-                transform=transform
-            )
+            dataset = datasets.CIFAR10(root="project/Images", train=False, download=False, transform=transform)
         elif not os.path.isdir(folder):
             print(f"skip {name}: {folder} not generated yet")
             continue
         else:
             dataset = ImageFolder(root=folder, transform=transform)
-            # Still generating
             if len(dataset) != 10000:
+                # Generation still running or interrupted: never save a partial result
                 print(f"skip {name}: only {len(dataset)}/10000 images")
                 continue
 
@@ -74,7 +51,27 @@ def evaluate_all(model, device, model_name, transform):
         evaluation(model, device, loader, save_as)
 
 
-def evaluation(model, device, loader, save_as):
+def save_results(save_as, dataset, labels, predictions, confusion_matrix, seconds, parameters):
+    """Saves everything results.py needs, so no number has to be copied from the terminal."""
+    os.makedirs(os.path.dirname(save_as), exist_ok=True)
+    labels, predictions = np.array(labels), np.array(predictions)
+    if isinstance(dataset, ImageFolder):
+        # Stylized images are saved as <CIFAR-10 test index>.png
+        image_ids = np.array([int(os.path.basename(path)[:-4]) for path, _ in dataset.samples])
+    else:
+        image_ids = np.arange(len(dataset))
+
+    np.savez(save_as + ".npz", predictions=predictions, labels=labels,
+             confusion=confusion_matrix.numpy().astype(np.int64), seconds=seconds, parameters=parameters)
+    with open(save_as + "_predictions.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["image", "true", "predicted"])
+        for image, true, predicted in sorted(zip(image_ids, labels, predictions)):
+            writer.writerow([image, CLASSES[true], CLASSES[predicted]])
+    print(f"Saved to {save_as}.npz and {save_as}_predictions.csv")
+
+
+def evaluation(model, device, loader, save_as=None):
     images, labels = next(iter(loader))
 
 
@@ -207,31 +204,8 @@ def evaluation(model, device, loader, save_as):
     print(f"Images/sec: {round(images_per_second,2)}")
     print(f"Evaluation time: {round((end_time1 - start_time1),2)} seconds")
 
-    # Save results
-    os.makedirs(os.path.dirname(save_as), exist_ok=True)
-    np.savez(
-        save_as + ".npz",
-        predictions=np.array(all_predictions),
-        labels=np.array(all_labels),
-        confusion=confusion_matrix.numpy().astype(np.int64),
-        seconds=end_time1 - start_time1,
-        parameters=parameters
-    )
-
-    # Stylized images are saved as <CIFAR-10 test number>.png
-    image_ids = []
-    if isinstance(loader.dataset, ImageFolder):
-        for path, _ in loader.dataset.samples:
-            image_ids.append(int(os.path.basename(path).replace(".png", "")))
-    else:
-        image_ids = list(range(len(loader.dataset)))
-
-    rows = sorted(zip(image_ids, all_labels, all_predictions))
-    with open(save_as + "_predictions.csv", "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["image", "true", "predicted"])
-        for image, true, predicted in rows:
-            writer.writerow([image, classes[true], classes[predicted]])
-    print(f"Saved to {save_as}.npz and {save_as}_predictions.csv")
+    if save_as is not None:
+        save_results(save_as, loader.dataset, all_labels, all_predictions, confusion_matrix,
+                     end_time1 - start_time1, parameters)
 
     return images, labels
